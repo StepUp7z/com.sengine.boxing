@@ -4,7 +4,9 @@
 	Author: VEGETAZ
 	Created on: Sep.1, 2023
 	Updated on: Dec.09, 2024
-	Version: 0.0.7
+	Version: 0.0.15
+	
+	说明：因为引擎层问题，AIState设置失效！来自引擎层的严重Bug，模组脚本层不背此锅
 */
 
 
@@ -198,12 +200,6 @@ function OnPlayerComplete( player )
 	*/
 
 	newHealthBar(false, player.Character);
-
-
-	// Boxing位置指引
-	// player.AddGuider(player.ID, POS.ENTRANCE1, true);
-	player.AddGuider(player.ID, POS.ENTRANCE1, false);
-	// indicators[player.ID] = true;
 
 
 	/*
@@ -632,13 +628,13 @@ var BoxingTable = {
 	},
 
 	PICKUP: {
-		TYPS: 0,
+		TYPE: 0,
 		MODEL: 3118,
 	},
 
 
 	// 暂存，Boxing皮肤集
-	SKINS: [90, 35, 104, 16];
+	SKINS: [90, 35, 104, 16],
 
 	POLY: [
 		Vector(22.9, 0.0, 41.1)
@@ -655,18 +651,18 @@ var BoxingTable = {
 	// ==== 功能区 ====
 	// npc出生
 	spawnNpc: function(){
-		let npc = npcs[npcIndex];
+		let npc = npcs[this.npcIndex];
 		if(npc != null){
 			// 延迟出生防止出拳bug（初步怀疑出拳时死亡导致的bug）
 			if(!npc.IsSpawned) Timer.Create( ()=> {
 				npc.Respawn();
 			}, SPAWN_DELAY_SECONDS);
 
-			npc.Health = MAX_HEALTH;
-			npc.Pos = POS.NPC;
+			npc.Health = this.MAX_HEALTH;
+			npc.Pos = this.POS.NPC;
 		}
 		return npc;
-	}
+	},
 	// 初始化玩家
 	initPlayer: function(player){
 		this.plrIndex = player.ID;
@@ -694,7 +690,7 @@ var BoxingTable = {
 		npc.AIState = this.AI_READY_STATE;
 
 		// 设置描边
-		npc.OutlineTargetTo(player, OUTLINE_TYPE);
+		npc.OutlineTargetTo(player, this.OUTLINE_TYPE);
 
 		// 通知
 		Announce(`${player.Name} 开启 npc Boxing挑战！`);
@@ -705,12 +701,14 @@ var BoxingTable = {
 
 		// 倒计时
 		Timer.Create( () => {
-			this.countDown(this.READY_SECONDS, player.ID)
-		}, 1);
+			this.countDown(this.READY_SECONDS, player.ID);
+		}, this.COUNT_DOWN_SCALE_SECONDS);
 		Timer.Create( ()=> {
-			this.npcs[this.npcIndex].AIState = this.DIFFICULTY;
-			Player.Find(plrIndex).Entity.Frozen = false;
-		}, (this.READY_SECONDS+1));
+			npcs[this.npcIndex].AIState = this.DIFFICULTY;
+			let plr = Player.Find(this.plrIndex);
+			// 保险，忘了当初咋触发缺陷了
+			if(plr && plr.Entity) plr.Entity.Frozen = false;
+		}, (this.READY_SECONDS+this.COUNT_DOWN_SCALE_SECONDS));
 
 		// 暂时冻结玩家
 		player.Entity.Frozen = true;
@@ -723,17 +721,20 @@ var BoxingTable = {
 	// to player，倒计时函数
 	countDown: function(sec, playerID){
 
-		this.timerAnnouncePlayer(sec+"", COUNT_DOWN_ANNOUCNE_TYPE, playerID);
+		this.timerAnnouncePlayer(sec+"", this.COUNT_DOWN_ANNOUCNE_TYPE, playerID);
 
 		sec--;
 
 		// 后续处理
 		if(sec > 0){
-			Timer.Create(() => this.countDown(sec, playerID), COUNT_DOWN_SCALE_SECONDS);
+			Timer.Create(() => this.countDown(sec, playerID), this.COUNT_DOWN_SCALE_SECONDS);
 		}
 		else if(sec == 0) {
 			// 清空
-			Timer.Create(() => this.timerAnnouncePlayer("", COUNT_DOWN_ANNOUCNE_TYPE, playerID), COUNT_DOWN_SCALE_SECONDS);
+			Timer.Create(() => {
+				this.timerAnnouncePlayer("", 
+				this.COUNT_DOWN_ANNOUCNE_TYPE, playerID)
+			}, this.COUNT_DOWN_SCALE_SECONDS);
 		}
 
 
@@ -747,7 +748,7 @@ var BoxingTable = {
 
 		plr.Message(msg);
 
-	}
+	},
 
 	// 用于定时器给玩家发送公告
 	timerAnnouncePlayer: function(msg, type, playerID){
@@ -757,7 +758,7 @@ var BoxingTable = {
 
 		plr.Announce(msg, type);
 
-	}
+	},
 
 	// 结束Boxing
 	end: function(type){
@@ -801,7 +802,7 @@ var BoxingTable = {
 			plr.Character.Health = this.MAX_HEALTH;
 
 			// 相关信息提示
-			plr.Subtitle(`当前分数：${score[plr.ID]}`);
+			plr.Subtitle(`当前分数：${this.score[plr.ID]}`);
 
 			let data = {"key":"BoxingVAngle", "value":0};
 			// Send Stream to Change Camera
@@ -809,7 +810,7 @@ var BoxingTable = {
 
 		}
 		else{
-			Announce(`玩家${plrIndex} vs NPC : ${this.END_MSG[type]}`);
+			Announce(`玩家${this.plrIndex} vs NPC : ${this.END_MSG[type]}`);
 		}
 
 		// 重置挑战玩家ID，同时标志跳转结束
@@ -833,7 +834,7 @@ var BoxingTable = {
 		}
 
 		// 开启挑战入口
-		setPickup(true);
+		this.setPickup(true);
 
 	},
 
@@ -843,7 +844,9 @@ var BoxingTable = {
 		// 开启入口
 		if(toggle){
 
-			this.entrance = Pickup.Create(PICKUP.TYPE, PICKUP.MODEL, POS.ENTRANCE1);
+			// Debug
+			// DError(`${this.PICKUP.TYPE}, ${this.PICKUP.MODEL}, ${this.POS.ENTRANCE1}`);
+			this.entrance = Pickup.Create(this.PICKUP.TYPE, this.PICKUP.MODEL, this.POS.ENTRANCE1);
 			Message("Boxing Entrance Re-Opened! 欢迎挑战！");
 
 		}
@@ -866,9 +869,9 @@ var BoxingTable = {
 		this.indicators = new Array(GetMaxPlayers()).fill(false);
 
 		// Boxing NPC创建
-		let npc = Character.Create(0, POS.NPC, 0);
+		let npc = Character.Create(0, this.POS.NPC, 0);
 		npc.Name = "Boxing_NPC"
-		npc.AIState = AI_READY_STATE;
+		npc.AIState = this.AI_READY_STATE;
 		npcs.push(npc);
 		this.npcIndex = npcs.length-1;
 
@@ -945,12 +948,17 @@ var BoxingTable = {
 		// 玩家进入
 		OnPlayerJoin: function( player ){
 			// 初始化Boxing分数
-			this.score[player.ID] = 0;
-		}
-		
+			BoxingTable.score[player.ID] = 0;
+		},
+		// 玩家角色完成
+		OnPlayerComplete: function( player ){
+			// Boxing位置指引：API更新
+			player.AddGuider(player.ID, BoxingTable.POS.ENTRANCE1, "Boxing入口", false);
+			// 设置随机皮肤
+			player.Entity.Skin = BoxingTable.SKINS[Math.floor(Math.random()*BoxingTable.SKINS.length)];
+		},
 	},
-	
-	
+
 };
 
 

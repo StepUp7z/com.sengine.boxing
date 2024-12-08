@@ -3,16 +3,17 @@
 	Main2: Client.js
 	Author: VEGETAZ
 	Created on: Sep.1, 2023
-	Updated on: Sep.20, 2023
-	Version: 0.2
+	Updated on: Dec.09, 2024
+	Version: 0.0.3
 
 */
 
 // 本地玩家
 var localPlayer = null;
 
-var BoxingVAngle = 50;
-var CommonVAngle = 30;
+// 新版VAngle相反！
+var BoxingVAngle = -50;
+var CommonVAngle = -30;
 
 // 健康，不健康滤镜
 var healthVignette = [Color(0, 0, 0), Color(200, 0, 0) ];
