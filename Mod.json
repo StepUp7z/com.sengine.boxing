@@ -1,7 +1,7 @@
 {
   "Name": "Native by VEGETAZ",
   "Owner": "SandtableEngine",
-  "Version": "0.6",
+  "Version": "0.0.15",
   "Info": "SandtableEngine official example demo by VEGETAZ",
   "Font": "TsangerYuYangT",
   "DefaultLanguage": "English",
@@ -10,9 +10,9 @@
   "NetworkPort": 8192,
   "AllowDownload": true,
   "PrivateWorld": true,
-  "Source": "https://gitcode.net/Bibiboxs/SandtableEngine/-/raw/master/Mod/com.sengine.VEGETAZSep01.zip",
+  "Source": "https://gitee.com/zainus-harvey-yip/com.sengine.boxing.git",
   "LastTime": "1718961897",
-  "Author": "None",
+  "Author": "VEGETAZ",
   "NetDownload": 0,
   "LastPlayerUUID": "5d0087a97f50682711dc3b4222796fa0d2374e24",
   "LastLicence": "1B2M2Y8AsgTpgAmY7PhCfg=="
