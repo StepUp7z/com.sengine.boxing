@@ -1,0 +1,11 @@
+{
+	"Mod": "com.sengine.VEGETAZ_Sep01",
+    	"HostName": "Sandtable Engine Example Server by VEGETAZ",
+    	"Transport": 0,
+   	"Address": "127.0.0.1:8192",
+    	"Map": "eg_vgtz_Sep18",
+	"MaxPlayers": 10,
+	"Password": "",
+    	"RconPassword": "",
+    	"Param": ""
+}
