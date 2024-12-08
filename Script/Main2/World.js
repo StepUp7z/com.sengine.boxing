@@ -3,8 +3,8 @@
 	Main2: World.js
 	Author: VEGETAZ
 	Created on: Sep.1, 2023
-	Updated on: Sep.20, 2023
-	Version: 0.6
+	Updated on: Dec.09, 2024
+	Version: 0.0.7
 */
 
 
@@ -30,7 +30,6 @@ var healthBarsHealthyLevel = 20;
 
 // 给角色增加血条，NPC/玩家
 function newHealthBar(isNpc, char){
-
 
 	// NPC
 	if(isNpc){
@@ -61,6 +60,8 @@ function newHealthBar(isNpc, char){
 
 }
 
+
+
 // ============================== Script ================================
 
 
@@ -88,28 +89,8 @@ function OnScriptLoad()
 	// 玩家血条数组初始化
 	healthBars = new Array(GetMaxPlayers()).fill(null);
 
-	// 玩家Boxing指示器初始化
-	boxingIndicators = new Array(GetMaxPlayers()).fill(false);
-
-	// Boxing NPC创建
-	let npc = Character.Create(0, BoxingNpcPos, 0);
-	npc.Name = "Boxing_NPC"
-	npc.AIState = 2;
-	npcs.push(npc);
-	boxingNpcIndex = npcs.length-1;
-
-	// NPC新增血条
-	newHealthBar(true, npcs[npcs.length-1]);
-
-	// Boxing 分数初始化
-	boxingScore = new Array(GetMaxPlayers()).fill(0);
-
-
-	// Boxing Entrance Open
-	setBoxingPickup(true);
-
-
-
+	// Boxing模块初始化
+	BoxingTable.init();
 
 }
 
@@ -130,8 +111,6 @@ function OnScriptUnload(){
 // 每帧调用事件，参数为间隔时间
 function OnFrameUpdate(deltaTime)
 {
-
-
 	let i = 0;
 	// 全服玩家更新状态
 	for(i=0; i<GetMaxPlayers(); i++){
@@ -188,24 +167,12 @@ function OnPlayerJoin( player )
 {
 	// DLog("Join222 = " + player.Name);
 
-	// 初始化Boxing分数
-	boxingScore[player.ID] = 0;
-
 }
 
 function OnPlayerPart(player, reason){
 
 	healthBars[player.ID].Remove();
-	healthBars[player.ID] = null; // Help GC
-
-	if(player.ID == boxingPlayerIndex){
-		boxingEnd(2);
-	}
-
-	// 玩家Boxing指示器处理
-	boxingIndicators[player.ID] = null;
-	player.BoxingPolyTimer.Remove();
-	player.BoxingPolyTimer = null;
+	healthBars[player.ID] = null; // Help GC（也许）
 
 }
 
@@ -234,31 +201,30 @@ function OnPlayerComplete( player )
 
 
 	// Boxing位置指引
-	// player.AddGuider(player.ID, BoxingEntrancePos1, true);
-	player.AddGuider(player.ID, BoxingEntrancePos1, false);
-	// boxingIndicators[player.ID] = true;
+	// player.AddGuider(player.ID, POS.ENTRANCE1, true);
+	player.AddGuider(player.ID, POS.ENTRANCE1, false);
+	// indicators[player.ID] = true;
 
 
 	/*
 	// 每十秒检查一次玩家是否在Boxing范围内，不在则添加指示器
 	player.BoxingPolyTimer = Timer.Create(()=>{
 		// 已存在是return
-		// if(boxingIndicators[player.ID]) return;
+		// if(indicators[player.ID]) return;
 
 		if(!InPoly(player.Entity.Pos, BoxingPoly[0], BoxingPoly[1], BoxingPoly[2], BoxingPoly[3], BoxingPoly[4])){
-			player.AddGuider(player.ID, BoxingEntrancePos1, false);
-			boxingIndicators[player.ID] = true;
+			player.AddGuider(player.ID, POS.ENTRANCE1, false);
+			indicators[player.ID] = true;
 		}
 		else{
 			if(player.ExistGuider(player.ID)){
 				player.RemoveGuider(player.ID);
-				boxingIndicators[player.ID] = false;
+				indicators[player.ID] = false;
 			}
 		}
 	}, 5, 0);
 
 	*/
-
 
 	player.Message("指令：/score 可查看当前分数");
 	
@@ -305,26 +271,12 @@ function OnCharacterSpawn( character )
 
 // 角色死亡时事件
 function OnCharacterDeath( character, reason )
-{
-	let plr = character.Owner;
-	if( plr != null ){
-
-		if( plr.ID == boxingPlayerIndex ){
-			boxingEnd(1);
-		}
-
-	}
-}
+{}
 
 // 角色击杀时事件，killer为击杀者，character为被击杀者
 function OnCharacterKill( killer, character, reason )
-{
+{}
 
-	if( character == npcs[boxingNpcIndex] ){
-		boxingEnd(0);
-	}
-
-}
 
 // 角色健康值改变时事件
 function OnCharacterHealthChange( character, oldHealth, newHealth )
@@ -336,7 +288,7 @@ function OnCharacterHealthChange( character, oldHealth, newHealth )
 	}
 
 	// 变为不健康
-	if( oldHealth > healthBarsHealthyLevel && newHealth <= healthBarsHealthyLevel ){
+	if( oldHealth >= healthBarsHealthyLevel && newHealth < healthBarsHealthyLevel ){
 		let data = {"key":"HealthVignette", "value":100-newHealth};
 		// Send Stream
 		let plr = character.Owner;
@@ -345,7 +297,7 @@ function OnCharacterHealthChange( character, oldHealth, newHealth )
 		}
 	}
 	// 变为健康
-	else if( oldHealth <= healthBarsHealthyLevel && newHealth > healthBarsHealthyLevel ){
+	else if( oldHealth < healthBarsHealthyLevel && newHealth >= healthBarsHealthyLevel ){
 		let data = {"key":"HealthVignette", "value":0};
 		// Send Stream
 		let plr = character.Owner;
@@ -536,7 +488,7 @@ commands.helpString.push("/getpos");
 // score
 commands.score = function(player, arg){
 
-	player.Subtitle(`Boxing分数: ${boxingScore[player.ID]}`);
+	player.Subtitle(`Boxing分数: ${score[player.ID]}`);
 	
 }
 
@@ -566,13 +518,7 @@ function OnPlayerCommand( player, cmd, arg ){
 
 // 进入Pickup时事件
 function OnPickupEntered( pickup, entity )
-{
-	// Boxing入口触发
-	if( pickup.ID == boxingEntrance.ID ){
-		boxingStart(entity.Owner);
-	}
-
-}
+{}
 
 function OnPickupExited( pickup, entity )
 {
@@ -630,267 +576,383 @@ function fp(id)
 
 // ======================================= 自定义区域 =========================
 
-// Boxing 相关数据 - 变量区
-var boxingNpcIndex = -1;
+// Boxing模块
+var BoxingTable = {
+	
+	// ==== 数据区 ====
+	// 变量区
+	npcIndex: -1,
 
-var boxingPlayerIndex = -1;
+	plrIndex: -1,
 
-var boxingScore = null;
+	score: null,
 
-// 入口pickup
-var boxingEntrance = null;
+	// 入口pickup
+	entrance: null,
 
-// 玩家Boxing指示器，记录是否存在指示器
-var boxingIndicators = null;
-
-
-// Boxing 相关数据 - 常量区
-
-const BoxingHealthMax = 100;
-
-const BoxingReadySeconds = 3;
-const BoxingCountDownAnnounceType = 3;
-
-// 对应AIState，暂时如此简易，之后再智能点
-const BoxingDifficulty = 3;
-
-var BoxingNpcPos = Vector(0.2, 0.0, 58.0);
-var BoxingPlayerPos = Vector(7.4, 0.0, 50.5);
-var BoxingExitPlayerPos = Vector(3.8, 0, 38.9);
+	// 玩家Boxing指示器，记录是否存在指示器
+	indicators: null,
 
 
-// pickup-入口相关数据
-var BoxingEntrancePos1 = Vector(4, 0, 47);
-var BoxingEntrancePos2 = Vector(4, 0, 67);
+	// 存放：事件监听器实例哈希值，deinit中用
+	listeners: [],
+	
+	// 常量区
+	NONE_INDEX: -1,
+	SPAWN_DELAY_SECONDS: 2,
+	MAX_HEALTH: 100,
+	
+	OUTLINE_TYPE: 2,
 
-const BoxingPickupType = 0;
-const BoxingPickupModel = 3118;
-
-// 暂存，Boxing皮肤集
-var BoxingSkin = [90, 35, 104, 16];
-
-var BoxingPoly = [
-	Vector(22.9, 0.0, 41.1)
-	,
-	Vector(-17.3, 0.0, 39.5)
-	,
-	Vector(-30.6, 0.0, 85.5)
-	,
-	Vector(2.0, 0.0, 107.1)
-	,
-	Vector(39.8, 0.0, 86.9)
-];
-
-
-// Boxing 相关方法
-function boxingStart(player){
-
-	// 设置
-	// npc血量、位置
-	let npc = npcs[boxingNpcIndex];
-	if(npc != null){
-
-		// 延迟出生防止出拳bug（初步怀疑出拳时死亡导致的bug）
-		if(!npc.IsSpawned) Timer.Create( ()=> {npc.Respawn();}, 2);
-
-		npc.Health = BoxingHealthMax;
-		npc.Pos = BoxingNpcPos;
-		
-	}
-
-
-	// 玩家血量、位置
-	boxingPlayerIndex = player.ID;
-	player.Character.Health = BoxingHealthMax;
-	player.Character.Pos = BoxingPlayerPos;
-
-	let data = {"key":"BoxingVAngle", "value":1};
-	// Send Stream to Change Camera
-	player.SendData(1, JSON.stringify(data));
-
-	// npc绑定对手
-	npc.AITarget = player.Character;
-	npc.AIState = 2;
-
-	// 设置描边
-	npc.OutlineTargetTo(player, 2);
-
-	// 通知
-	Announce(`${player.Name} 开启 npc Boxing挑战！`);
-
-	// 相关信息提示
-	let score = boxingScore[player.ID];
-	player.Subtitle(`当前分数：${score}`);
-
-	// 倒计时
-
-	Timer.Create( () => {countDown(BoxingReadySeconds, player.ID)}, 1);
-	Timer.Create( ()=> {npcs[boxingNpcIndex].AIState = BoxingDifficulty; Player.Find(boxingPlayerIndex).Entity.Frozen = false}, (BoxingReadySeconds+1));
-
-	// 暂时冻结玩家
-	player.Entity.Frozen = true;
-
-	// 关闭入口
-	setBoxingPickup(false);
-
-
-}
-
-// to player，倒计时函数
-function countDown(sec, playerID){
-
-	// timerMessagePlayer(sec+"", playerID);
-	timerAnnouncePlayer(sec+"", BoxingCountDownAnnounceType, playerID);
-
-	sec--;
-
-	if(sec > 0){
-		Timer.Create(() => countDown(sec, playerID), 1);
-	}
-	else if(sec == 0) {
-		Timer.Create(() => timerAnnouncePlayer("", BoxingCountDownAnnounceType, playerID), 1);
-	}
-
-
-}
-
-// 用于定时器给玩家发送消息
-function timerMessagePlayer(msg, playerID){
-
-	let plr = Player.Find(playerID);
-	if(plr == null) return;
-
-	plr.Message(msg);
-
-}
-
-// 用于定时器给玩家发送公告
-function timerAnnouncePlayer(msg, type, playerID){
-
-	let plr = Player.Find(playerID);
-	if(plr == null) return;
-
-	plr.Announce(msg, type);
-
-}
-
-// 结束Boxing
-function boxingEnd(type){
-
-	// 未开启时return
-	if(boxingPlayerIndex == -1) return;
-
-	// 判断结束条件type，不使用枚举，直接对应
-	// let msg = ["Won", "Died", "Exited"];
-	let msg = ["胜利", "死亡", "退出"];
-
+	READY_SECONDS: 3,
+	COUNT_DOWN_ANNOUCNE_TYPE: 3,
+	COUNT_DOWN_SCALE_SECONDS: 1,
+	
+	// 结束类型枚举
+	END_TYPES: {
+		WON: 0,
+		DIED: 1,
+		PART: 2,
+	},
 	// 分数影响
-	let ScoreOffset = [2, -1, -2];
+	SCORE_OFFSET: [2, -1, -2],
+	// 结束消息
+	END_MSG: ["胜利", "死亡", "退出"],
 
-	boxingScore[boxingPlayerIndex] += ScoreOffset[type];
+	AI_READY_STATE: 2,
+	// 对应AIState，暂时如此简易，之后再智能点
+	DIFFICULTY: 3,
 
-	// 历史写法，可拓展
-	// 玩家胜利：击败npc
-	if(type == 0){
-		// 获胜+2分
-		// boxingScore[boxingPlayerIndex]+=2;
-		
-	}
+	POS: {
+		NPC: Vector(0.2, 0.0, 58.0),
+		PLAYER: Vector(7.4, 0.0, 50.5),
+		EXIT: Vector(3.8, 0, 38.9),
+		ENTRANCE1: Vector(4, 0, 47),
+		ENTRANCE2: Vector(4, 0, 67),
+	},
 
-	// 玩家失败：玩家死亡
-	else if(type == 1){
-		// 失败扣1分
-		// boxingScore[boxingPlayerIndex]--;
-	}
-
-	// 玩家失败：玩家退出
-	// 无操作
+	PICKUP: {
+		TYPS: 0,
+		MODEL: 3118,
+	},
 
 
-	let plr = Player.Find(boxingPlayerIndex);
-	// 通知
-	// 设置boxing玩家
-	// 玩家血量、位置
-	if(plr != null){
-		// Message(`${plr.Name} vs NPC : ${msg[type]}`);
-		Announce(`${plr.Name} vs NPC : ${msg[type]}！`);
-		plr.Character.Pos = BoxingExitPlayerPos;
+	// 暂存，Boxing皮肤集
+	SKINS: [90, 35, 104, 16];
 
-		// 延迟复活，以避免无法出拳的bug
-		if(!plr.Character.IsSpawned){
-			Timer.Create( ()=> { plr.Character.Respawn(); }, 2);
-			Message("将在2秒后复活...");
+	POLY: [
+		Vector(22.9, 0.0, 41.1)
+		,
+		Vector(-17.3, 0.0, 39.5)
+		,
+		Vector(-30.6, 0.0, 85.5)
+		,
+		Vector(2.0, 0.0, 107.1)
+		,
+		Vector(39.8, 0.0, 86.9)
+	],
+	
+	// ==== 功能区 ====
+	// npc出生
+	spawnNpc: function(){
+		let npc = npcs[npcIndex];
+		if(npc != null){
+			// 延迟出生防止出拳bug（初步怀疑出拳时死亡导致的bug）
+			if(!npc.IsSpawned) Timer.Create( ()=> {
+				npc.Respawn();
+			}, SPAWN_DELAY_SECONDS);
+
+			npc.Health = MAX_HEALTH;
+			npc.Pos = POS.NPC;
 		}
-		plr.Character.Health = BoxingHealthMax;
+		return npc;
+	}
+	// 初始化玩家
+	initPlayer: function(player){
+		this.plrIndex = player.ID;
+		player.Character.Health = this.MAX_HEALTH;
+		player.Character.Pos = this.POS.PLAYER;
+	},
 
-		// 相关信息提示
-		plr.Subtitle(`当前分数：${boxingScore[plr.ID]}`);
+	// 开始Boxing
+	start: function(player){
 
-		let data = {"key":"BoxingVAngle", "value":0};
+		// 设置
+		// npc血量、位置
+		let npc = this.spawnNpc();
+
+		// 玩家血量、位置
+		this.initPlayer(player);
+		
+		// 发送给客户端数据
+		let data = {"key":"BoxingVAngle", "value":1};
 		// Send Stream to Change Camera
-		plr.SendData(0, JSON.stringify(data));
+		player.SendData(1, JSON.stringify(data));
 
-	}
-
-	else{
-		// Message(`玩家${boxingPlayerIndex} vs NPC : ${msg[type]}`);
-		Announce(`玩家${boxingPlayerIndex} vs NPC : ${msg[type]}`);
-	}
-
-	// 重置挑战玩家ID，同时标志跳转结束
-	boxingPlayerIndex = -1;
-
-
-	// 设置
-	// npc血量、位置、攻击状态
-	let npc = npcs[boxingNpcIndex];
-	if(npc != null){
-
-		// 延迟复活，以避免无法出拳的bug
-		if(!npc.IsSpawned) Timer.Create( ()=> {npc.Respawn();}, 2);
-		npc.Health = BoxingHealthMax;
-		npc.Pos = BoxingNpcPos;
-
-		// npc取消绑定对手
-		npc.AITarget = null;
-		npc.AIState = -1;
+		// npc绑定对手
+		npc.AITarget = player.Character;
+		npc.AIState = this.AI_READY_STATE;
 
 		// 设置描边
-		npc.OutlineTargetOutAll();
+		npc.OutlineTargetTo(player, OUTLINE_TYPE);
 
-		
+		// 通知
+		Announce(`${player.Name} 开启 npc Boxing挑战！`);
+
+		// 相关信息提示
+		let score = this.score[player.ID];
+		player.Subtitle(`当前分数：${score}`);
+
+		// 倒计时
+		Timer.Create( () => {
+			this.countDown(this.READY_SECONDS, player.ID)
+		}, 1);
+		Timer.Create( ()=> {
+			this.npcs[this.npcIndex].AIState = this.DIFFICULTY;
+			Player.Find(plrIndex).Entity.Frozen = false;
+		}, (this.READY_SECONDS+1));
+
+		// 暂时冻结玩家
+		player.Entity.Frozen = true;
+
+		// 关闭入口
+		this.setPickup(false);
+
+	},
+
+	// to player，倒计时函数
+	countDown: function(sec, playerID){
+
+		this.timerAnnouncePlayer(sec+"", COUNT_DOWN_ANNOUCNE_TYPE, playerID);
+
+		sec--;
+
+		// 后续处理
+		if(sec > 0){
+			Timer.Create(() => this.countDown(sec, playerID), COUNT_DOWN_SCALE_SECONDS);
+		}
+		else if(sec == 0) {
+			// 清空
+			Timer.Create(() => this.timerAnnouncePlayer("", COUNT_DOWN_ANNOUCNE_TYPE, playerID), COUNT_DOWN_SCALE_SECONDS);
+		}
+
+
+	},
+
+	// 用于定时器给玩家发送消息
+	timerMessagePlayer: function(msg, playerID){
+
+		let plr = Player.Find(playerID);
+		if(plr == null) return;
+
+		plr.Message(msg);
+
 	}
 
+	// 用于定时器给玩家发送公告
+	timerAnnouncePlayer: function(msg, type, playerID){
+
+		let plr = Player.Find(playerID);
+		if(plr == null) return;
+
+		plr.Announce(msg, type);
+
+	}
+
+	// 结束Boxing
+	end: function(type){
+
+		// 未开启时return
+		if(this.plrIndex == this.NONE_INDEX) return;
+
+		// 分数影响
+		this.score[this.plrIndex] += this.SCORE_OFFSET[type];
+
+		// 历史写法，可拓展
+		// 玩家胜利：击败npc
+		if(type == this.END_TYPES.WON){
+			// 获胜+2分
+			// score[plrIndex]+=2;
+		}
+		// 玩家失败：玩家死亡
+		else if(type == this.END_TYPES.DIED){
+			// 失败扣1分
+			// score[plrIndex]--;
+		}
+		// 玩家失败：玩家退出
+		else if(type == this.END_TYPES.PART){
+			// 无操作
+		}
+
+
+		let plr = Player.Find(this.plrIndex);
+		// 通知
+		// 设置boxing玩家
+		// 玩家血量、位置
+		if(plr != null){
+			Announce(`${plr.Name} vs NPC : ${this.END_MSG[type]}！`);
+			plr.Character.Pos = this.POS.EXIT;
+
+			// 延迟复活，以避免无法出拳的bug
+			if(!plr.Character.IsSpawned){
+				Timer.Create( ()=> { plr.Character.Respawn(); }, this.SPAWN_DELAY_SECONDS);
+				Message(`将在${this.SPAWN_DELAY_SECONDS}秒后复活...`);
+			}
+			plr.Character.Health = this.MAX_HEALTH;
+
+			// 相关信息提示
+			plr.Subtitle(`当前分数：${score[plr.ID]}`);
+
+			let data = {"key":"BoxingVAngle", "value":0};
+			// Send Stream to Change Camera
+			plr.SendData(0, JSON.stringify(data));
+
+		}
+		else{
+			Announce(`玩家${plrIndex} vs NPC : ${this.END_MSG[type]}`);
+		}
+
+		// 重置挑战玩家ID，同时标志跳转结束
+		this.plrIndex = this.NONE_INDEX;
+
+		// 设置
+		// npc血量、位置、攻击状态
+		let npc = npcs[this.npcIndex];
+		if(npc != null){
+			// 延迟复活，以避免无法出拳的bug
+			if(!npc.IsSpawned) Timer.Create( ()=> {npc.Respawn();}, this.SPAWN_DELAY_SECONDS);
+			npc.Health = this.MAX_HEALTH;
+			npc.Pos = this.POS.NPC;
+
+			// npc取消绑定对手
+			npc.AITarget = null;
+			npc.AIState = this.NONE_INDEX;
+
+			// 设置描边
+			npc.OutlineTargetOutAll();
+		}
+
+		// 开启挑战入口
+		setPickup(true);
+
+	},
+
+	// 设置挑战入口（Pickup）开关
+	setPickup: function(toggle){
+
+		// 开启入口
+		if(toggle){
+
+			this.entrance = Pickup.Create(PICKUP.TYPE, PICKUP.MODEL, POS.ENTRANCE1);
+			Message("Boxing Entrance Re-Opened! 欢迎挑战！");
+
+		}
+
+		// 删除入口
+		else{
+
+			this.entrance.Remove();
+			this.entrance = null; // Help GC（也许）
+			Message(`Boxing Entrance Closed! 暂时关闭挑战！`);
+
+		}
+
+	},
 	
+	
+	// 初始化
+	init: function(){
+		// 玩家Boxing指示器初始化
+		this.indicators = new Array(GetMaxPlayers()).fill(false);
 
-	// 开启挑战入口
-	setBoxingPickup(true);
+		// Boxing NPC创建
+		let npc = Character.Create(0, POS.NPC, 0);
+		npc.Name = "Boxing_NPC"
+		npc.AIState = AI_READY_STATE;
+		npcs.push(npc);
+		this.npcIndex = npcs.length-1;
 
+		// NPC新增血条
+		newHealthBar(true, npcs[npcs.length-1]);
 
+		// Boxing 分数初始化
+		this.score = new Array(GetMaxPlayers()).fill(0);
 
-}
+		// Boxing Entrance Open
+		this.setPickup(true);
+		
+		// 遍历事件实现
+		for(let eventName in this.events){
+			// 注册事件监听：事件名，事件实现
+			let listener = AddListener(eventName, this.events[eventName]);
+			// 加入容器
+			this.listeners.push(listener);
+		}
+	},
 
-// 设置挑战入口（Pickup）开关
-function setBoxingPickup(toggle){
+	// 反向初始化-模块关闭用
+	deinit: function(){
+		// 取消事件监听
+		for(let i=0; i<this.listeners.length; i++){
+			RemoveListener(this.listeners[i]);
+		}
+		
+		this.indicators = null;
+		// 不推荐，因为血条删除麻烦，数组移除会带来现存npcId移位
+		// npcs.remove[this.npcIndex];
+		
+		this.score = null;
+		this.setPickup(false);
+	},
+	
+	// ==== 事件区 ====
+	events: {
+		// 进入拾取物
+		OnPickupEntered: function( pickup, entity ){
+			if( pickup.ID == BoxingTable.entrance.ID ){
+				BoxingTable.start(entity.Owner);
+			}
+		},
+		// 角色击杀
+		OnCharacterKill: function( killer, character, reason ){
+			if( character == npcs[BoxingTable.npcIndex] ){
+				BoxingTable.end(BoxingTable.END_TYPES.WON);
+			}
+		},
+		// 角色死亡
+		OnCharacterDeath: function( character, reason ){
+			let plr = character.Owner;
+			if( plr != null && plr.ID == BoxingTable.plrIndex ){
+				BoxingTable.end(BoxingTable.END_TYPES.DIED);
+			}
+		},
+		// 玩家断线
+		OnPlayerPart: function(player, reason){
 
-	// 开启入口
-	if(toggle){
+			if(player.ID == BoxingTable.plrIndex){
+				BoxingTable.end(BoxingTable.END_TYPES.PART);
+			}
 
-		boxingEntrance = Pickup.Create(BoxingPickupType, BoxingPickupModel, BoxingEntrancePos1);
-		Message("Boxing Entrance Re-Opened! 欢迎挑战！");
+			// 玩家Boxing指示器处理
+			this.indicators[player.ID] = null;
+			if(BoxingPolyTimer in player){
+				player.BoxingPolyTimer.Remove();
+				player.BoxingPolyTimer = null;
+				delete player.BoxingPolyTimer;
+			}
 
-	}
+		},
+		// 玩家进入
+		OnPlayerJoin: function( player ){
+			// 初始化Boxing分数
+			this.score[player.ID] = 0;
+		}
+		
+	},
+	
+	
+};
 
-	// 删除入口
-	else{
-
-		boxingEntrance.Remove();
-		boxingEntrance = null; // Help GC
-		Message(`Boxing Entrance Closed! 暂时关闭挑战！`);
-
-	}
-
-}
 
 
 
